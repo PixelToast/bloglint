@@ -1,0 +1,769 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+    <title>How to reverse engineer Flutter apps</title>
+    <meta name="HandheldFriendly" content="True" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="stylesheet" href="styles.css">
+    <link rel="shortcut icon" href="/favicon.png" type="image/png" />
+    <link rel="canonical" href="https://blog.pxtst.com/p/3c90270a-b815-43cd-a8cd-3d8a7aea4e6e/" />
+    <meta name="referrer" content="no-referrer-when-downgrade" />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="amphtml" href="https://blog.pxtst.com/p/3c90270a-b815-43cd-a8cd-3d8a7aea4e6e/amp/" />
+
+    <meta property="og:site_name" content="PixelToast" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="How to reverse engineer Flutter apps" />
+    <meta property="og:description" content="Chapter 1: The stackTo start this journey I need to explain the stack of Flutter and how it works.Flutter was built from the ground up with its own render pipeline and widget library, allowing it to be truly cross platform and have a consistent design and feel no matter" />
+    <meta property="og:url" content="https://blog.pxtst.com/p/3c90270a-b815-43cd-a8cd-3d8a7aea4e6e/" />
+    <meta property="og:image" content="https://blog.pxtst.com/content/images/2020/02/qxAf4.png" />
+    <meta property="article:tag" content="ARM" />
+    <meta property="article:tag" content="Assembly" />
+    <meta property="article:tag" content="C/C++" />
+    <meta property="article:tag" content="Dart" />
+    <meta property="article:tag" content="Low Level" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="How to reverse engineer Flutter apps" />
+    <meta name="twitter:description" content="Chapter 1: The stackTo start this journey I need to explain the stack of Flutter and how it works.Flutter was built from the ground up with its own render pipeline and widget library, allowing it to be truly cross platform and have a consistent design and feel no matter" />
+    <meta name="twitter:url" content="https://blog.pxtst.com/p/3c90270a-b815-43cd-a8cd-3d8a7aea4e6e/" />
+    <meta name="twitter:image" content="https://blog.pxtst.com/content/images/2020/02/qxAf4.png" />
+    <meta name="twitter:label1" content="Written by" />
+    <meta name="twitter:data1" content="Andre Lipke" />
+    <meta name="twitter:label2" content="Filed under" />
+    <meta name="twitter:data2" content="ARM, Assembly, C/C++, Dart, Low Level" />
+    <meta property="og:image:width" content="1920" />
+    <meta property="og:image:height" content="979" />
+
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "Article",
+            "publisher": {
+                "@type": "Organization",
+                "name": "PixelToast",
+                "logo": "https://blog.pxtst.com/content/images/2019/11/logo_white_blog-1.png"
+            },
+            "author": {
+                "@type": "Person",
+                "name": "Andre Lipke",
+                "image": {
+                    "@type": "ImageObject",
+                    "url": "https://blog.pxtst.com/content/images/2019/08/np_260-1.png",
+                    "width": 260,
+                    "height": 260
+                },
+                "sameAs": [
+                    "https://pxtst.com/"
+                ]
+            },
+            "headline": "How to reverse engineer Flutter apps",
+            "url": "https://blog.pxtst.com/p/3c90270a-b815-43cd-a8cd-3d8a7aea4e6e/",
+            "image": {
+                "@type": "ImageObject",
+                "url": "https://blog.pxtst.com/content/images/2020/02/qxAf4.png",
+                "width": 1920,
+                "height": 979
+            },
+            "keywords": "ARM, Assembly, C/C++, Dart, Low Level",
+            "description": "Chapter 1: The stackTo start this journey I need to explain the stack of Flutter and how it works.Flutter was built from the ground up with its own render pipeline and widget library, allowing it to be truly cross platform and have a consistent design and feel no matter",
+            "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://blog.pxtst.com/"
+            }
+        }
+    </script>
+    <script src="/public/ghost-sdk.min.js?v=6b8cb19b08"></script>
+    <script>
+        ghost.init({
+            clientId: "ghost-frontend",
+            clientSecret: "2d18494682e5"
+        });
+    </script>
+    <meta name="generator" content="Ghost 2.22" />
+    <link rel="alternate" type="application/rss+xml" title="PixelToast" href="https://blog.pxtst.com/rss/" />
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-114525654-1"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-114525654-1');
+    </script>
+
+    <style>
+
+        code[class*="language-"],
+        pre[class*="language-"] {
+            color: #ccc;
+            background: none;
+            text-align: left;
+            white-space: pre;
+            word-spacing: normal;
+            word-break: normal;
+            word-wrap: normal;
+            line-height: 1.5;
+
+            -moz-tab-size: 4;
+            -o-tab-size: 4;
+            tab-size: 4;
+
+            -webkit-hyphens: none;
+            -moz-hyphens: none;
+            -ms-hyphens: none;
+            hyphens: none;
+
+        }
+
+        /* Code blocks */
+        pre[class*="language-"] {
+            overflow: auto;
+        }
+
+        :not(pre) > code[class*="language-"],
+        pre[class*="language-"] {
+            background: #2d2d2d;
+        }
+
+        /* Inline code */
+        :not(pre) > code[class*="language-"] {
+            padding: .1em;
+            border-radius: .3em;
+            white-space: normal;
+        }
+
+        .token.comment,
+        .token.prolog,
+        .token.doctype,
+        .token.cdata {
+            color: #737C8C;
+        }
+
+        .token.punctuation {
+            color: #abb2bf;
+        }
+
+        .token.selector,
+        .token.tag {
+            color: #e06c75;
+        }
+
+        .token.property,
+        .token.boolean,
+        .token.number,
+        .token.constant,
+        .token.symbol,
+        .token.attr-name,
+        .token.deleted {
+            color: #d19a66;
+        }
+
+        .token.string,
+        .token.char,
+        .token.attr-value,
+        .token.builtin,
+        .token.inserted {
+            color: #98c379;
+        }
+
+        .token.operator,
+        .token.entity,
+        .token.url,
+        .language-css .token.string,
+        .style .token.string {
+            color: #56b6c2;
+        }
+
+        .token.atrule,
+        .token.keyword {
+            color: #c678dd;
+        }
+
+        .token.function {
+            color: #61afef;
+        }
+
+        .token.regex,
+        .token.important,
+        .token.variable {
+            color: #dd8195;
+        }
+
+        .token.important,
+        .token.bold {
+            font-weight: bold;
+        }
+        .token.italic {
+            font-style: italic;
+        }
+
+        .token.entity {
+            cursor: help;
+        }
+
+        .token.inserted {
+            color: green;
+        }
+
+    </style>
+    <script src="https://i.tst.sh/QQBGy.js" defer></script>
+    <script defer src="../build/main.dart.js"></script>
+</head>
+<body class="post-template tag-arm tag-assembly tag-c-cpp tag-dart tag-low-level">
+
+<div class="site-wrapper">
+
+
+
+    <header class="site-header outer">
+        <div class="inner">
+            <nav class="site-nav">
+                <div class="site-nav-left">
+                    <a class="site-nav-logo" href="https://blog.pxtst.com"><img src="/content/images/2019/11/logo_white_blog-1.png" alt="PixelToast" /></a>
+                    <ul class="nav" role="menu">
+                        <li class="nav-home" role="menuitem"><a href="https://pxtst.com/">Home</a></li>
+                        <li class="nav-all-posts" role="menuitem"><a href="https://blog.pxtst.com/">All Posts</a></li>
+                        <li class="nav-low-level" role="menuitem"><a href="https://blog.pxtst.com/tag/low-level/">Low Level</a></li>
+                        <li class="nav-robotics" role="menuitem"><a href="https://blog.pxtst.com/tag/robotics/">Robotics</a></li>
+                        <li class="nav-esoteric" role="menuitem"><a href="https://blog.pxtst.com/tag/esoteric/">Esoteric</a></li>
+                        <li class="nav-web-dev" role="menuitem"><a href="https://blog.pxtst.com/tag/web-dev/">Web Dev</a></li>
+                    </ul>
+
+                </div>
+                <div class="site-nav-right">
+                    <div class="social-links">
+                    </div>
+                    <a class="rss-button" href="https://feedly.com/i/subscription/feed/https://blog.pxtst.com/rss/" title="RSS" target="_blank" rel="noopener"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="6.18" cy="17.82" r="2.18"/><path d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"/></svg>
+                    </a>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+
+    <main id="site-main" class="site-main outer">
+        <div class="inner">
+
+            <article class="post-full post tag-arm tag-assembly tag-c-cpp tag-dart tag-low-level featured ">
+                <header class="post-full-header"
+                        style="background-image: url('/content/images/size/w2000/2020/02/qxAf4.png')"
+                >
+                    <div class="post-full-fade">
+                        <h1 class="post-full-title">How to reverse engineer Flutter apps</h1>
+                        <div class="post-full-sep"></div>
+                        <section class="post-full-meta">
+                            <time class="post-full-meta-date" datetime="2020-02-17">Published February 17, 2020 by Andre Lipke</time>
+                            <span class="date-divider">|</span> <a href="/tag/arm/">ARM</a>
+                        </section>
+                    </div>
+                </header>
+
+                <section class="post-full-content">
+                    <div class="post-content">
+                        <h3 id="chapter-1-the-stack">Chapter 1: The stack</h3><p><br>To start this journey I need to explain the stack of Flutter and how it works.</p><p>Flutter was built from the ground up with its own render pipeline and widget library, allowing it to be truly cross platform and have a consistent design and feel no matter what device its running on.</p><p>Unlike most platforms, all of the essential rendering components of the flutter framework (including animation, layout, and painting) is fully exposed to you in the <code><a href="https://github.com/flutter/flutter/tree/master/packages/flutter">package:flutter</a></code> import you are probably familiar with.</p><p>You can see these components in the official architecture diagram from <a href="https://github.com/flutter/flutter/wiki/The-Engine-architecture">wiki/The-Engine-architecture</a>:</p><!--kg-card-begin: image--><figure class="kg-card kg-image-card"><img src="/content/images/2019/07/image-6.png" class="kg-image"></figure><!--kg-card-end: image--><p>What we mostly want to look at is DartVM itself since that is where all your app logic sits while the rest of the stack is mostly static.</p><p>Flutter apps compile to native assembly code and use formats that have not been publicly documented in-depth let alone fully decompiled and recompiled. For comparison other platforms like React Native just bundle minified javascript which is trivial to inspect and modify.</p><p>Despite the lack of obfuscation or encryption, Flutter apps are still extremely difficult to reverse engineer while requiring in-depth knowledge of Dart internals.</p><p>This makes Flutter very good from a intellectual property perspective, your code is <em>almost</em> completely safe from prying eyes.</p><p>Next I'll show you the build process of Flutter applications and explain in detail how to reverse engineer the code that it produces.</p><!--kg-card-begin: hr--><hr><!--kg-card-end: hr--><h3 id="snapshots">Snapshots</h3><p><br>‌‌The Dart SDK is highly versatile, you can embed and run Dart code in many different configurations on many different platforms and architectures.</p><p>The simplest way to run Dart is to use the <code>dart</code> executable which just reads dart source files directly like a scripting language. It includes primary components we call the front-end, runtime, and JIT compiler.</p><p>You can also use <code>dart</code> to create and execute <a href="https://github.com/dart-lang/sdk/wiki/Snapshots">snapshots</a>, a pre-compiled form of Dart which is commonly used in production.</p><!--kg-card-begin: code--><pre><code>#lint shell
+ping@debian:~/Desktop$ time dart hello.dart
+Hello, World!
+
+real    0m0.656s
+user    0m0.920s
+sys     0m0.084s
+
+ping@debian:~/Desktop$ dart --snapshot=hello.snapshot hello.dart
+ping@debian:~/Desktop$ time dart hello.snapshot
+Hello, World!
+
+real    0m0.105s
+user    0m0.208s
+sys     0m0.016s</code></pre><!--kg-card-end: code--><p>As you can see, the start-up time is significantly lower making snapshots great for command line tools like <code>pub</code>.</p><p>The default snapshot format is <a href="https://github.com/dart-lang/sdk/wiki/Kernel-Documentation">kernel</a>, an intermediate representation of Dart code similar to an AST.</p><p>When running a Flutter app in debug mode, the flutter tool creates a kernel snapshot and runs it in your android app with the debug runtime + JIT. This gives you the ability to debug your app and modify code live at runtime with hot reload.</p><p>Unfortunately for us, using your own JIT compiler is frowned upon in the mobile industry due to increased concerns of RCEs. iOS actually prevents you from executing dynamically generated code entirely.</p><p>There are two more types of snapshots though, <code>app-jit</code> and <code>app-aot</code>, these contain compiled machine code that can be executed quicker than kernel snapshots but aren't cross-platform.</p><p><code>app-aot</code> snapshots contain machine code instead of kernel, these types of snapshots are generated using the <code>gen_snapshots</code> tool found in <code>flutter/bin/cache/artifacts/engine/&lt;arch&gt;/&lt;target&gt;/</code>, more on that later.</p><p>They are a little more than just a compiled version of Dart code though, in fact they are a full "snapshot" of the VMs heap just before main is called. This is a unique feature of Dart and one of the reasons it starts up so quickly compared to other VMs.</p><p>Flutter uses these AOT snapshots for release builds, you can see them in the file tree for an Android APK built with <code>flutter build apk</code>:</p><!--kg-card-begin: code--><pre><code>#lint shell
+ping@debian:~/Desktop/app/lib$ tree .
+.
+├── arm64-v8a
+│   ├── libapp.so
+│   └── libflutter.so
+└── armeabi-v7a
+    ├── libapp.so
+    └── libflutter.so</code></pre><!--kg-card-end: code--><p>Here you can see the two libapp.so files, which are both target snapshots as ELF binaries.</p><p>The fact that <code>gen_snapshots</code> outputs an ELF / shared object here might be a bit misleading, it does not expose dart methods as symbols that can be called externally. Instead these files are containers for the clustered snapshot format but with compiled code in the separate executable section, here is how they are structured:</p><!--kg-card-begin: code--><pre><code>#lint shell
+ping@debian:~/Desktop/app/lib/arm64-v8a$ aarch64-linux-gnu-objdump -T libapp.so
+
+libapp.so:     file format elf64-littleaarch64
+
+DYNAMIC SYMBOL TABLE:
+0000000000001000 g    DF .text  0000000000004ba0 _kDartVmSnapshotInstructions
+0000000000006000 g    DF .text  00000000002d0de0 _kDartIsolateSnapshotInstructions
+00000000002d7000 g    DO .rodata        0000000000007f10 _kDartVmSnapshotData
+00000000002df000 g    DO .rodata        000000000021ad10 _kDartIsolateSnapshotData</code></pre><!--kg-card-end: code--><p>The reason why AOT snapshots are in shared object form instead of a regular snapshot file is because machine code generated by <code>gen_snapshots</code> needs to be loaded into executable memory when the app starts. It's easier for Flutter tooling to just generate a shared object separately than it would be to statically link flutter and your snapshot together.</p><p>With this shared object everything in the <code>.text</code> section will be loaded into executable memory by the linker, allowing the Dart runtime to call into it at any time.</p><p>You may have noticed there are two snapshots: the VM snapshot and the Isolate snapshot.<br>DartVM has a second isolate that does background tasks called the vm isolate, it is required for <code>app-aot</code> snapshots since the runtime can't dynamically load it in as the <code>dart</code> executable would.</p><!--kg-card-begin: hr--><hr><!--kg-card-end: hr--><h3 id="the-dart-sdk">The Dart SDK</h3><p><br>Thankfully Dart is completely open source so you don't have to fly blind when reverse engineering the snapshot format.</p><p>Before creating a testbed for generating and disassembling snapshots you have to set up the Dart SDK, there is documentation on how to build it here: <a href="https://github.com/dart-lang/sdk/wiki/Building">https://github.com/dart-lang/sdk/wiki/Building</a>.</p><p>You want to generate libapp.so files which is typically done by the flutter tool, but there doesn't seem to be any documentation on how to do that yourself.</p><p>The flutter sdk ships binaries for <code>gen_snapshot</code> which is not part of the standard <code>create_sdk</code> build target you usually use when building dart.</p><p>It does exist as a separate target in the SDK though, you can build the <code>gen_snapshot</code> tool for arm with this command:</p><!--kg-card-begin: code--><pre><code class="language-sh">./tools/build.py -m product -a simarm gen_snapshot</code></pre><!--kg-card-end: code--><p>Normally you can only generate snapshots for the architecture you are running on, to work around that they have created sim targets which simulate snapshot generation for the target platform. This has some limitations such as not being able to make aarch64 or x86_64 snapshots on a 32 bit system.</p><p>Before making a shared object you have to compile a dill file using the front-end:</p><!--kg-card-begin: code--><pre><code>~/flutter/bin/cache/dart-sdk/bin/dart ~/flutter/bin/cache/artifacts/engine/linux-x64/frontend_server.dart.snapshot --sdk-root ~/flutter/bin/cache/artifacts/engine/common/flutter_patched_sdk_product/ --strong --target=flutter --aot --tfa -Ddart.vm.product=true --packages .packages --output-dill app.dill package:foo/main.dart</code></pre><!--kg-card-end: code--><p>Dill files are actually the same format as kernel snapshots, their format is specified here: <a href="https://github.com/dart-lang/sdk/blob/master/pkg/kernel/binary.md">https://github.com/dart-lang/sdk/blob/master/pkg/kernel/binary.md</a></p><p>This is the format used as a common representation of dart code between tools, including <code>gen_snapshot</code> and <code>analyzer</code>. </p><p>With the app.dill we can finally generate a libapp.so using this command:</p><!--kg-card-begin: code--><pre><code class="language-sh">gen_snapshot --causal_async_stacks --deterministic --snapshot_kind=app-aot-elf --elf=libapp.so --strip app.dill</code></pre><!--kg-card-end: code--><p>Once I was able to manually generate the libapp.so, it was easy to modify the SDK to print out all of the debug information needed to reverse engineer any app.</p><!--kg-card-begin: hr--><hr><!--kg-card-end: hr--><h3 id="anatomy-of-a-snapshot">Anatomy of a snapshot</h3><p><br>The AOT snapshot itself is quite complex, it is a custom binary format with packed ints and even some directly serialized structs.</p><p>The lack of documentation forced me to manually step through the serialization process in a debugger to verify my own reading method.</p><p>The source files relevant to snapshot generation can be found here:</p><ul><li>Cluster serialization / deserialization<br><code><a href="https://github.com/dart-lang/sdk/blob/7340a569caac6431d8698dc3788579b57ffcf0c6/runtime/vm/clustered_snapshot.h">vm/clustered_snapshot.h</a></code><br><code><a href="https://github.com/dart-lang/sdk/blob/7340a569caac6431d8698dc3788579b57ffcf0c6/runtime/vm/clustered_snapshot.cc">vm/clustered_snapshot.cc</a></code></li><li>ROData serialization<br><code><a href="https://github.com/dart-lang/sdk/blob/7340a569caac6431d8698dc3788579b57ffcf0c6/runtime/vm/image_snapshot.h">vm/image_snapshot.h</a></code><br><code><a href="https://github.com/dart-lang/sdk/blob/7340a569caac6431d8698dc3788579b57ffcf0c6/runtime/vm/image_snapshot.cc">vm/image_snapshot.cc</a></code></li><li>ReadStream / WriteStream<br><code><a href="https://github.com/dart-lang/sdk/blob/7340a569caac6431d8698dc3788579b57ffcf0c6/runtime/vm/datastream.h">vm/datastream.h</a></code></li><li>Object definitions<br><code><a href="https://github.com/dart-lang/sdk/blob/7340a569caac6431d8698dc3788579b57ffcf0c6/runtime/vm/object.h">vm/object.h</a></code></li><li>ClassId enum<br><code><a href="https://github.com/dart-lang/sdk/blob/7340a569caac6431d8698dc3788579b57ffcf0c6/runtime/vm/class_id.h">vm/class_id.h</a></code></li></ul><p>With that it took about two weeks to implement a command line utility that is capable of parsing a snapshot, giving us complete access to the heap of a compiled app.</p><p>Here is the layout of snapshot data:</p><!--kg-card-begin: image--><figure class="kg-card kg-image-card"><img src="/content/images/2019/07/image-7.png" class="kg-image"></figure><!--kg-card-end: image--><p>Every <code>RawObject*</code> in the Isolate gets serialized from a corresponding <code>SerializationCluster</code> instance depending on its class id. These objects can contain anything from code, instances, types, primitives, closures, constants, etc.</p><p>After deserializing the VM isolate snapshot, every object in its heap gets added to the Isolate snapshot object pool allowing them to be referenced later.</p><p>Clusters are serialized in three stages: Trace, Alloc, and Fill.</p><p>In the trace stage, root objects are added to a queue along with the objects they reference in a breadth first search. At the same time a <code>SerializationCluster</code> instance is created corresponding to each class type.</p><p>Root objects are a static set of objects used by the vm in the isolates <code>ObjectStore</code> which we will use later to locate libraries and classes. The VM snapshot actually has a different set of root objects which are defined in <code>StubCode</code> and are shared between all isolates.</p><p>After tracing, cluster info is written containing basic information about the clusters, most importantly the number of objects to allocate.</p><p>In the alloc stage, each clusters <code>WriteAlloc</code> method is called which writes any information needed to allocate raw objects. Most of the time all this method does is write the class id and number of objects that are part of this cluster.</p><p>The objects that are part of each cluster are also assigned an incrementing object id in the order they are allocated, this is used later during the fill stage when resolving object references.</p><p>You may have noticed the lack of any indexing and cluster size information, the entire snapshot has to be read fully in order to get any meaningful data out of it. So to actually do any reverse engineering you must either implement deserialization routines for 31+ cluster types (which I have done) or extract information by loading it into a modified runtime (which is difficult to do cross-architecture).</p><p>Here is a simplified example of what the structure of the clusters would be for an array <code>[69, 42]</code>:</p><!--kg-card-begin: image--><figure class="kg-card kg-image-card"><img src="/content/images/2019/07/Selection_771-3.png" class="kg-image"></figure><!--kg-card-end: image--><p>Here in the fill stage you can see more object data being written. If an object references another object like an array element, the serializer writes the object id assigned during the alloc phase as shown above.</p><p>In the case of Mints and Smis, they are constructed entirely in the alloc stage because they don't reference any other objects.</p><p>After that the ~107 root refs are written including object ids for core types, libraries, classes, caches, static exceptions and several other miscellaneous objects.</p><p>Finally, ROData objects are written which are directly mapped to <code>RawObject*</code>s in-memory to avoid an extra deserialization step.</p><p>The most important type of ROData is <code>OneByteString</code>s which is used for library / class / function names, it is also referenced directly by offsets being the only place in the snapshot data where decoding is optional.</p><p>Similar to ROData, instruction objects are direct pointers to snapshot data but are stored in the executable instruction symbol rather than main snapshot data.</p><p>By modifying the SDK we can dump out a list of serialization clusters that are typically written when compiling an app:</p><!--kg-card-begin: code--><pre><code>#lint cluster-tbl
+idx | cid | ClassId enum        | Cluster name
+----|-----|---------------------|----------------------------------------
+  0 |   5 | Class               | ClassSerializationCluster
+  1 |   6 | PatchClass          | PatchClassSerializationCluster
+  2 |   7 | Function            | FunctionSerializationCluster
+  3 |   8 | ClosureData         | ClosureDataSerializationCluster
+  4 |   9 | SignatureData       | SignatureDataSerializationCluster
+  5 |  12 | Field               | FieldSerializationCluster
+  6 |  13 | Script              | ScriptSerializationCluster
+  7 |  14 | Library             | LibrarySerializationCluster
+  8 |  17 | Code                | CodeSerializationCluster
+  9 |  20 | ObjectPool          | ObjectPoolSerializationCluster
+ 10 |  21 | PcDescriptors       | RODataSerializationCluster
+ 11 |  22 | CodeSourceMap       | RODataSerializationCluster
+ 12 |  23 | StackMap            | RODataSerializationCluster
+ 13 |  25 | ExceptionHandlers   | ExceptionHandlersSerializationCluster
+ 14 |  29 | UnlinkedCall        | UnlinkedCallSerializationCluster
+ 15 |  31 | MegamorphicCache    | MegamorphicCacheSerializationCluster
+ 16 |  32 | SubtypeTestCache    | SubtypeTestCacheSerializationCluster
+ 17 |  36 | UnhandledException  | UnhandledExceptionSerializationCluster
+ 18 |  40 | TypeArguments       | TypeArgumentsSerializationCluster
+ 19 |  42 | Type                | TypeSerializationCluster
+ 20 |  43 | TypeRef             | TypeRefSerializationCluster
+ 21 |  44 | TypeParameter       | TypeParameterSerializationCluster
+ 22 |  45 | Closure             | ClosureSerializationCluster
+ 23 |  49 | Mint                | MintSerializationCluster
+ 24 |  50 | Double              | DoubleSerializationCluster
+ 25 |  52 | GrowableObjectArray | GrowableObjectArraySerializationCluster
+ 26 |  65 | StackTrace          | StackTraceSerializationCluster
+ 27 |  72 | Array               | ArraySerializationCluster
+ 28 |  73 | ImmutableArray      | ArraySerializationCluster
+ 29 |  75 | OneByteString       | RODataSerializationCluster
+ 30 |  95 | TypedDataInt8Array  | TypedDataSerializationCluster
+ 31 | 143 | &lt;instance&gt;          | InstanceSerializationCluster
+...
+ 54 | 463 | &lt;instance&gt;          | InstanceSerializationCluster</code></pre><!--kg-card-end: code--><p>There are a few more clusters that could potentially be in a snapshot, but these are the only ones I have seen so far.</p><p>In DartVM there are a static set of predefined class IDs defined in the <code>ClassId</code> enum, 142 IDs as of Dart 2.4.0 to be exact. IDs outside of that (or do not have an associated cluster) are written with separate <code>InstanceSerializationCluster</code>s.</p><p>Finally bringing the parser together we can view the structure of the snapshot from the ground up, starting with the libraries list in the root object table.</p><p>Using the object tree here's how you can locate a top level function, in this case <code>package:ftest/main.dart</code>s <code>main</code>:</p><!--kg-card-begin: image--><figure class="kg-card kg-image-card"><img src="/content/images/2020/01/dartdec-graph-1.png" class="kg-image"></figure><!--kg-card-end: image--><p>As you can see, library, class and function names are included in snapshot allowing you to easily traverse the programs structure and type information. The names are included because they are used to generate stack traces and error messages, however there is an option to obfuscate them.</p><p>Obfuscation is not very popular and probably not worth the effort but this will most likely change in the future and become more streamlined similar to proguard on Android or sourcemaps on the web.</p><p>Machine code is stored in <code>Instructions</code> objects pointed to by <code>Code</code> from an offset to the start of either the isolate instruction image or vm instruction image, both of which are loaded into the executable <code>.text</code> section.</p><!--kg-card-begin: hr--><hr><!--kg-card-end: hr--><h3 id="hello-world-">Hello, World!</h3><p><br>Cool, we can see a programs class structure but how easy is it to figure out whats going on inside of functions?</p><p>As expected reverse engineering from here on is a bit more difficult because we are digging through the assembly code contained in <code>Instructions</code> objects.</p><p>Instead of using a modern compiler backend like clang, Dart actually uses its JIT compiler for code generation but with a couple AOT specific optimizations.</p><p>If you have never worked with JIT code, it is extremely bloated compared to what the equivalent C code would produce. Not that Dart is doing a bad job though, it's designed to be generated quickly at runtime and the hand-written assembly for common instructions often beats clang/gcc in terms of performance.</p><p>Generated code being simpler actually works to our advantage since it closer resembles the higher level IR used to generate it.</p><p>Most of the relevant code generation can be found in:</p><ul><li><code>vm/compiler/backend/il_&lt;arch&gt;.cc</code></li><li><code>vm/compiler/assembler/assembler_&lt;arch&gt;.cc</code></li><li><code>vm/compiler/asm_intrinsifier_&lt;arch&gt;.cc</code></li><li><code>vm/compiler/graph_intrinsifier_&lt;arch&gt;.cc</code></li></ul><p>Here is the register layout and calling conventions for dart's A64 assembler:</p><!--kg-card-begin: code--><pre><code>#lint reg-tbl
+       r0 |     | Returns
+r0  -  r7 |     | Arguments
+r0  - r14 |     | General purpose
+      r15 | sp  | Dart stack pointer
+      r16 | ip0 | Scratch register
+      r17 | ip1 | Scratch register
+      r18 |     | Platform register
+r19 - r25 |     | General purpose
+r19 - r28 |     | Callee saved registers
+      r26 | thr | Current thread
+      r27 | pp  | Object pool
+      r28 | brm | Barrier mask
+      r29 | fp  | Frame pointer
+      r30 | lr  | Link register
+      r31 | zr  | Zero / CSP</code></pre><!--kg-card-end: code--><p>This ABI follows the standard AArch64 calling conventions <a href="https://infocenter.arm.com/help/topic/com.arm.doc.ihi0055b/IHI0055B_aapcs64.pdf">here</a> but with a few global registers:</p><ul><li>R26 / THR: Pointer to the running vm <code>Thread</code>, see <a href="https://github.com/dart-lang/sdk/blob/7340a569caac6431d8698dc3788579b57ffcf0c6/runtime/vm/thread.h">vm/thread.h</a></li><li>R27 / PP: Pointer to the <code>ObjectPool</code> of the current context, see <a href="https://github.com/dart-lang/sdk/blob/7340a569caac6431d8698dc3788579b57ffcf0c6/runtime/vm/object.h#L4275">vm/object.h</a></li><li>R28 / BRM: The barrier mask, used for incremental garbage collection</li></ul><p> Similarly, this is the register layout for A32:</p><!--kg-card-begin: code--><pre><code>#lint reg-tbl
+r0 -  r1 |     | Returns
+r0 -  r9 |     | General purpose
+r4 - r10 |     | Callee saved registers
+      r5 | pp  | Object pool
+     r10 | thr | Current thread
+     r11 | fp  | Frame pointer
+     r12 | ip  | Scratch register
+     r13 | sp  | Stack pointer
+     r14 | lr  | Link register
+     r15 | pc  | Program counter</code></pre><!--kg-card-end: code--><p>While A64 is a more common target I'll mostly be covering A32 since its is simpler to read and disassemble.</p><p>You can view the IR along with the disassembly by passing <code>--disassemble-optimized</code> to <code>gen_snapshot</code>, but note this only works on the debug/release targets and not product.</p><p>As an example, when compiling hello world:</p><!--kg-card-begin: code--><pre><code class="language-dart">void hello() {
+  print("Hello, World!");
+}</code></pre><!--kg-card-end: code--><p>Scrolling down a bit in the disassembly you will find:</p><!--kg-card-begin: code--><pre><code>#lint dartvm-dasm
+Code for optimized function 'package:dectest/hello_world.dart_::_hello' {
+        ;; B0
+        ;; B1
+        ;; Enter frame
+0xf69ace60    e92d4800               stmdb sp!, {fp, lr}
+0xf69ace64    e28db000               add fp, sp, #0
+        ;; CheckStackOverflow:8(stack=0, loop=0)
+0xf69ace68    e59ac024               ldr ip, [thr, #+36]
+0xf69ace6c    e15d000c               cmp sp, ip
+0xf69ace70    9bfffffe               blls +0 ; 0xf69ace70
+        ;; PushArgument(v3)
+0xf69ace74    e285ca01               add ip, pp, #4096
+0xf69ace78    e59ccfa7               ldr ip, [ip, #+4007]
+0xf69ace7c    e52dc004               str ip, [sp, #-4]!
+        ;; StaticCall:12( print&lt;0&gt; v3)
+0xf69ace80    ebfffffe               bl +0 ; 0xf69ace80
+0xf69ace84    e28dd004               add sp, sp, #4
+        ;; ParallelMove r0 &lt;- C
+0xf69ace88    e59a0060               ldr r0, [thr, #+96]
+        ;; Return:16(v0)
+0xf69ace8c    e24bd000               sub sp, fp, #0
+0xf69ace90    e8bd8800               ldmia sp!, {fp, pc}
+0xf69ace94    e1200070               bkpt #0x0
+}</code></pre><!--kg-card-end: code--><p>What is printed here is slightly different from a snapshot built in product but the important part is that we can see the IR instructions alongside assembly.</p><p>Breaking it down:</p><!--kg-card-begin: code--><pre><code>#lint dartvm-dasm
+        ;; Enter frame
+0xf6a6ce60    e92d4800               stmdb sp!, {fp, lr}
+0xf6a6ce64    e28db000               add fp, sp, #0</code></pre><!--kg-card-end: code--><p>This is a standard function prologue, the frame pointer of the caller and link register are pushed to the stack after which the frame pointer is set to the bottom of the function stack frame.</p><p>As with the standard ARM ABI, this uses a full-descending stack meaning it grows backwards in memory.<br></p><!--kg-card-begin: code--><pre><code>#lint dartvm-dasm
+        ;; CheckStackOverflow:8(stack=0, loop=0)
+0xf6a6ce68    e59ac024               ldr ip, [thr, #+36]
+0xf6a6ce6c    e15d000c               cmp sp, ip
+0xf6a6ce70    9bfffffe               blls +0 ; 0xf6a6ce70</code></pre><!--kg-card-end: code--><p>This is a simple routine which does what you probably guessed, checks if the stack overflowed.</p><p>Sadly their disassembler does not annotate either thread fields or branch targets so you have to do some digging.</p><p>A list of field offsets can be found in <code>vm/compiler/runtime_offsets_extracted.h</code>, which defines <code>Thread_stack_limit_offset = 36</code> telling us that the field accessed is the threads stack limit.</p><p>After the stack pointer is compared, it calls the <code>stackOverflowStubWithoutFpuRegsStub</code> stub if it has overflowed. The branch target in the disassembly appears to be un-patched but we can still inspect the actual binary afterwards to confirm.<br></p><!--kg-card-begin: code--><pre><code>#lint dartvm-dasm
+        ;; PushArgument(v3)
+0xf6a6ce74    e285ca01               add ip, pp, #4096
+0xf6a6ce78    e59ccfa7               ldr ip, [ip, #+4007]
+0xf6a6ce7c    e52dc004               str ip, [sp, #-4]!</code></pre><!--kg-card-end: code--><p>Here an object from the object pool is pushed onto the stack. Since the offset is too big to fit in an ldr offset encoding it uses an extra add instruction.</p><p>This object is in fact our "Hello, World!" string as a <code>RawOneByteString*</code> stored in the <code>globalObjectPool</code> of our isolate at offset 8103.</p><p>You may have noticed that offsets are misaligned, this is because object pointers are tagged with <code>kHeapObjectTag</code> from <code>vm/pointer_tagging.h</code>, in this case all of the pointers to <code>RawObject</code>s in compiled code are offset by 1.<br></p><!--kg-card-begin: code--><pre><code>#lint dartvm-dasm
+        ;; StaticCall:12( print&lt;0&gt; v3)
+0xf6a6ce80    ebfffffe               bl +0 ; 0xf6a6ce80
+0xf6a6ce84    e28dd004               add sp, sp, #4</code></pre><!--kg-card-end: code--><p>Here print is called followed by the string argument being popped from the stack.</p><p>Like before the branch hasn't been resolved, it is a relative branch to the entry point for <code>print</code> in dart:core.<br></p><!--kg-card-begin: code--><pre><code>#lint dartvm-dasm
+        ;; ParallelMove r0 &lt;- C
+0xf69ace88    e59a0060               ldr r0, [thr, #+96]   null</code></pre><!--kg-card-end: code--><p>Null is loaded into the return register, 96 being the offset to the null object field in a <code>Thread</code>.<br></p><!--kg-card-begin: code--><pre><code>#lint dartvm-dasm
+        ;; Return:16(v0)
+0xf69ace8c    e24bd000               sub sp, fp, #0
+0xf69ace90    e8bd8800               ldmia sp!, {fp, pc}
+0xf69ace94    e1200070               bkpt #0x0</code></pre><!--kg-card-end: code--><p>And finally the function epilogue, the stack frame is restored along with any callee-saved registers. Since lr was pushed last, popping it into pc will cause the function to return.</p><!--kg-card-begin: hr--><hr><!--kg-card-end: hr--><h3 id="calling-conventions">Calling conventions</h3><p><br>Doing static calls to functions like print is simple, just push arguments to the stack but it's a bit more complicated when you use positional and named arguments:</p><!--kg-card-begin: code--><pre><code class="language-dart">void main() {
+  void foo() {}
+  int bar([int aaa]) {}
+  Null biz({int aaa}) {}
+  int baz(int aa, {int aaa}) {}
+  
+  print(foo is void Function());
+  print(bar is void Function());
+  print(biz is void Function());
+  print(baz is void Function());
+}</code></pre><!--kg-card-end: code--><p>Which functions do you think print true?</p><p>The answer is foo, bar, biz all print true! but why? It turns out the Dart type system is much more flexible than you might expect, as long as a function takes the same positional arguments and has compatible return type it is a valid function subtype. You may also note that any return type is compatible with void since the value would be discarded anyway.</p><p>Here's another experiment:</p><!--kg-card-begin: code--><pre><code class="language-dart">void main() {
+  int foo({int a}) {}
+  int bar({int a, int b}) {}
+  
+  print(foo is int Function());
+  print(foo is int Function({int a}));
+  print(bar is int Function({int a}));
+  print(bar is int Function({int b}));
+  print(bar is int Function({int b, int c}));
+}
+</code></pre><!--kg-card-end: code--><p>In this example we are checking if functions have a valid subtype when they have a subset of named arguments, all but the last prints true.</p><p>If you are looking for a more formal description of function types, see "9.3 Type of a Function" in the <a href="https://dart.dev/guides/language/specifications/DartLangSpec-v2.2.pdf">Dart language specification</a>.</p><p>This composition is a nice feature but actually poses some problems when you want to implement a low level ABI, take the following example:</p><!--kg-card-begin: code--><pre><code class="language-dart">void main() {
+  void Function({int a, int c}) foo;
+  
+  foo = ({int a, int b, int c}) {
+    print("Hi $a $b $c");
+  };
+  
+  foo(a: 1, c: 2);
+}
+</code></pre><!--kg-card-end: code--><p>How does this closure know where its <code>c</code> argument is when it was called through a different function type? The answer is instead of treating named arguments as simple positional arguments according to its type, the caller will pass an argument descriptor telling the callee which named arguments were provided.</p><p>Argument descriptors are defined in <code>vm/dart_entry.h</code> which basically contain everything needed to solve our ABI problem. The implementation is just an interface over a regular Array object which the callee reads from.</p><p>Now for disassembly, starting with the caller:</p><!--kg-card-begin: code--><pre><code class="language-dart">void bar({int a}) {
+  print("Hi $a");
+}
+
+void foo() {
+  bar(a: 42);
+}</code></pre><!--kg-card-end: code--><!--kg-card-begin: code--><pre><code>#lint dartdec-dasm
+034 | ...
+038 | mov ip, #0x54
+03c | str ip, [sp, #-4]!   // push smi 42
+040 | add r4, pp, #0x2000
+044 | ldr r4, [r4, #0x4a3] // load the argument descriptor into r4
+048 | bl 0x1b8             // bar entry
+04C | ...</code></pre><!--kg-card-end: code--><p>The argument descriptor for that call is a pointer to the following array of dart objects:</p><!--kg-card-begin: code--><pre><code class="language-dart">[
+  0, // type arguments length
+  1, // argument count
+  0, // positional arg count
+  
+  // named arguments (name, position)
+  "x", 0,
+  
+  null, // null terminator
+]</code></pre><!--kg-card-end: code--><p>The descriptor is used in the prologue of the callee to map stack indices to their respective argument slots:</p><!--kg-card-begin: code--><pre><code>#lint dartdec-dasm
+// prologue
+
+000 | stmdb sp!, {fp, lr}
+004 | add fp, sp, #0
+008 | sub sp, sp, #4
+
+// optional parameter handling
+
+00c | ldr r0, [r4, #0x13] // arr[2] (positional arg count)
+010 | ldr r1, [r4, #0xf]  // arr[1] (argument count)
+014 | cmp r0, #0          // check if we have positional args
+018 | bgt 0x74            // jump to 08c
+
+// check named args
+
+01c | ldr r0, [r4, #0x17]  // arr[3] (first arg name)
+020 | add ip, pp, #0x2000  // 
+024 | ldr ip, [ip, #0x4a7] // string "x"
+028 | cmp r0, ip           // check if arg present
+02c | bne 0x20             // jump to 04c
+
+030 | ldr r0, [r4, #0x1b]    // arr[4] (first arg position)
+034 | sub r2, r1, r0         // r2 = arg_count - position
+038 | add r0, fp, r2, lsl #1 // r0 = fp + r2 * 2
+    |                        // this is really r2 * 4 because it's an smi
+03c | ldr r0, [r0, #4]       // read arg
+040 | mov r2, r0             // 
+044 | mov r0, #2             // 
+048 | b 12                   // jump to 054
+
+04c | ldr r2, [thr, #0x68] // thr-&gt;objectNull
+050 | mov r0, #0           // 
+
+054 | str r2, [fp, #-4] // store arg in local
+
+// done loading args
+
+058 | cmp r1, r0 // check if we have read all args
+05c | bne 0x30   // jump to 08c
+
+// continue prologe
+
+060 | ldr ip, [thr, #0x24] // thr-&gt;stackLimit
+064 | cmp sp, ip           //
+068 | blls -0x5af00        // stackOverflowStubWithoutFpuRegsStub
+
+// rest of function
+
+06c | ...
+
+// incompatible args path
+
+08c | ldr r6, [pp, #0x33] // Code* callClosureNoSuchMethod
+090 | sub sp, fp, #0      // 
+094 | ldmia sp!, {fp, lr} // exit frame
+098 | ldr pc, [r6, #3]    // invoke stub</code></pre><!--kg-card-end: code--><p>This code is generated at a high level in <code>vm/compiler/frontend/prologue_builder.cc</code> <code>PrologueBuilder::BuildOptionalParameterHandling</code>, meaning registers and subroutines may be layed out differently depending on the types of arguments and what optimizations it wants to do.</p><p>At the moment it looks like named arguments are quite inefficient, in the future we might see the VM generate tear-offs similar to what dart2js does.</p><!--kg-card-begin: hr--><hr><!--kg-card-end: hr--><h4 id="integer-arithmetic">Integer arithmetic</h4><p></p><p>The <code>num</code>, <code>int</code>, and <code>double</code> classes are special in the Dart type system, they cannot be extended or implemented for performance reasons.</p><p>This quirk guarantees a non-null <code>num</code> can always be used in arithmetic directly, if this restriction was missing the compiler would have to generate method calls for arithmetic operators instead.</p><p>All objects in dart are stored as <code>RawObject*</code> however only pointers tagged with <code>kHeapObjectTag</code> point to actual memory, otherwise they are smis, short for small ints.</p><p>There is a nice document with details on how and why this optimization was introduced, you can find it here: <a href="https://github.com/dart-lang/sdk/blob/master/docs/language/informal/int64.md">https://github.com/dart-lang/sdk/blob/master/docs/language/informal/int64.md</a></p><p>Any integer that can fit within the word size minus one bit (31 bits on A32) can be stored as an smi, otherwise larger integers are stored as 64 bit mint (medium int) instances on the heap.</p><p>Fun fact: the reason why they are called medium ints is because (before it was removed in 2.0) we used to have bigints with infinite size.</p><p>For example, here is a simple function that adds two ints:</p><!--kg-card-begin: code--><pre><code class="language-dart">int hello(int x, int y) =&gt; x + y;</code></pre><!--kg-card-end: code--><p>In the following disassembly we can see <code>x</code> and <code>y</code> are each unboxed into pairs of registers, Dart ints are 64 bit so two registers are needed on an A32 target:</p><!--kg-card-begin: code--><pre><code>#lint dartdec-dasm
+024 | ...
+028 | ldr r1, [fp, #12]    // load argument x
+02c | ldr ip, [thr, #0x68] // thr-&gt;objectNull
+030 | cmp r1, ip           // check if x is null
+034 | bleq -0x50954        // nullErrorStubWithoutFpuRegsStub
+038 | ...
+048 | mov r3, r1, asr #0x1f // sign-extend top half
+04c | movs r4, r1, asr #1   // shift heap flag into carry
+050 | bcc 12                // jump to 05c if heap flag is clear
+054 | ldr r4, [r1, #7]      // load lower half from mint
+058 | ldr r3, [r1, #11]     // load upper half from mint
+05c | ...</code></pre><!--kg-card-end: code--><p>After <code>x</code> and <code>y</code> are in registers you can perform the actual 64 bit add:</p><!--kg-card-begin: code--><pre><code>#lint dartdec-dasm
+070 | adds r7, r4, r6 // bottom half
+074 | adcs r2, r3, r1 // carry into top half</code></pre><!--kg-card-end: code--><p>Before returning the result gets re-boxed:</p><!--kg-card-begin: code--><pre><code>#lint dartdec-dasm
+074 | ...
+078 | mov r0, r7, lsl #1      // create smi from lower half
+07c | cmp r7, r0, asr #1      // check if MSB of smi isn't clobbered
+080 | cmpeq r2, r0, asr #0x1f // check if upper half is empty
+084 | beq 0x34                // jump to 0b8 if smi is valid
+  
+// construct mint
+  
+088 | ldr r0, [thr, #0x3c] // thr-&gt;top
+08c | adds r0, r0, #0x10   // add size of mint
+090 | ldr ip, [thr, #0x40] // thr-&gt;end
+094 | cmp ip, r0           // check if mint fits in pool
+098 | bls 0x28             // jump to 0c0 (slow path)
+
+// construct mint in pool
+
+09c | str r0, [thr, #0x3c] // shift down pool start
+0a0 | sub r0, r0, #15      // go back to original top
+0a4 | mov ip, #0x2204      // 
+0a8 | movt ip, #0x31       // 
+0ac | str ip, [r0, #-1]    // write object tags
+
+// store values in new mint
+
+0b0 | str r7, [r0, #7]     // write lower half
+0b4 | str r2, [r0, #11]    // write upper half
+
+// function epilogue
+
+0b8 | sub sp, fp, #0
+0bc | ldmia sp!, {fp, pc}
+  
+// slow path, invoke mint constructor
+
+0c0 | stmdb sp!, {r2, r7} //
+0c4 | bl 0x651f4          // new dart:core::Mint_at_0150898
+0c8 | ldmia sp!, {r2, r7} //
+0cc | b -0x1c             // jump to 0b0</code></pre><!--kg-card-end: code--><p>This might seem quite cumbersome but the function will return almost immediately if the result is a valid smi. Dart also knows how to inline simple functions like this to avoid the bloat of boxing/unboxing.</p><!--kg-card-begin: hr--><hr><!--kg-card-end: hr--><h4 id="instances">Instances</h4><p><br>Constructors in Dart are basically just methods, to create a new object you first call its allocation stub and then call its constructor:</p><!--kg-card-begin: code--><pre><code class="language-dart">Foo makeFoo() =&gt; Foo();</code></pre><!--kg-card-end: code--><!--kg-card-begin: code--><pre><code>#lint dartdec-dasm
+014 | ...
+018 | ldr ip, [pp, #0x93] //
+01c | str ip, [sp, #-4]!  // push type args &lt;void&gt;
+020 | bl -0x628           // Foo allocation stub
+024 | add sp, sp, #4      // pop arg
+028 | str r0, [fp, #-4]   // store object in frame
+02c | str r0, [sp, #-4]!  // push object as arg
+030 | bl -0x9f0           // Foo::Foo()
+034 | add sp, sp, #4      // pop arg
+038 | ldr r0, [fp, #-4]   // load object from frame into return reg
+03c | ...</code></pre><!--kg-card-end: code--><p>Each class has a corresponding allocation stub that allocates and initializes an instance (very similar to how it is done for mints).</p><p>After the instance is allocated a constructor function may be called assuming its constructor is not empty.</p><h4 id="inheritance">Inheritance</h4><h4 id="setters-getters">Setters / Getters</h4><h4 id="type-checking">Type checking</h4><h4 id="control-flow">Control flow</h4><h4 id="closures">Closures</h4><h4 id="async">Async</h4><h4 id="mixins">Mixins</h4>
+                    </div>
+                </section>
+
+
+                <footer class="post-full-footer">
+
+
+
+                    <section class="author-card">
+                        <img class="author-profile-image" src="/content/images/size/w100/2019/08/np_260-1.png" alt="Andre Lipke" />
+                        <section class="author-card-content">
+                            <h4 class="author-card-name"><a href="/author/andre/">Andre Lipke</a></h4>
+                            <p>Read <a href="/author/andre/">more posts</a> by this author.</p>
+                        </section>
+                    </section>
+                    <div class="post-full-footer-right">
+                        <a class="author-card-button" href="/author/andre/">Read More</a>
+                    </div>
+
+
+                </footer>
+
+
+            </article>
+
+        </div>
+    </main>
+
+    <aside class="read-next outer">
+        <div class="inner">
+            <div class="read-next-feed">
+                <article class="read-next-card">
+                    <header class="read-next-card-header">
+                        <h3 class="read-next-card-header-title"><a href="/tag/arm/">ARM</a></h3>
+                    </header>
+                    <div class="read-next-divider"></div>
+                    <div class="read-next-card-content">
+                        <ul>
+                            <li><a href="/emulating-the-vex-cortex/">Emulating the VEX Cortex</a></li>
+                            <li><a href="/a-small-arm-assembler/">A small ARM assembler</a></li>
+                            <li><a href="/my-first-program-in-arm-assembly/">My first program in ARM assembly</a></li>
+                        </ul>
+                    </div>
+                </article>
+
+
+
+            </div>
+        </div>
+    </aside>
+
+    <div class="floating-header">
+        <div class="floating-header-logo">
+            <a href="https://blog.pxtst.com">
+                <img src="/content/images/size/w30/2019/08/np_260.png" alt="PixelToast icon" />
+                <span>PixelToast</span>
+            </a>
+        </div>
+        <span class="floating-header-divider">&mdash;</span>
+        <div class="floating-header-title">How to reverse engineer Flutter apps</div>
+        <div class="floating-header-share">
+            <div class="floating-header-share-label">Share this <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M7.5 15.5V4a1.5 1.5 0 1 1 3 0v4.5h2a1 1 0 0 1 1 1h2a1 1 0 0 1 1 1H18a1.5 1.5 0 0 1 1.5 1.5v3.099c0 .929-.13 1.854-.385 2.748L17.5 23.5h-9c-1.5-2-5.417-8.673-5.417-8.673a1.2 1.2 0 0 1 1.76-1.605L7.5 15.5zm6-6v2m-3-3.5v3.5m6-1v2"/>
+            </svg>
+            </div>
+            <a class="floating-header-share-tw" href="https://twitter.com/share?text=How%20to%20reverse%20engineer%20Flutter%20apps&amp;url=https://blog.pxtst.com/p/3c90270a-b815-43cd-a8cd-3d8a7aea4e6e/"
+               onclick="window.open(this.href, 'share-twitter', 'width=550,height=235');return false;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M30.063 7.313c-.813 1.125-1.75 2.125-2.875 2.938v.75c0 1.563-.188 3.125-.688 4.625a15.088 15.088 0 0 1-2.063 4.438c-.875 1.438-2 2.688-3.25 3.813a15.015 15.015 0 0 1-4.625 2.563c-1.813.688-3.75 1-5.75 1-3.25 0-6.188-.875-8.875-2.625.438.063.875.125 1.375.125 2.688 0 5.063-.875 7.188-2.5-1.25 0-2.375-.375-3.375-1.125s-1.688-1.688-2.063-2.875c.438.063.813.125 1.125.125.5 0 1-.063 1.5-.25-1.313-.25-2.438-.938-3.313-1.938a5.673 5.673 0 0 1-1.313-3.688v-.063c.813.438 1.688.688 2.625.688a5.228 5.228 0 0 1-1.875-2c-.5-.875-.688-1.813-.688-2.75 0-1.063.25-2.063.75-2.938 1.438 1.75 3.188 3.188 5.25 4.25s4.313 1.688 6.688 1.813a5.579 5.579 0 0 1 1.5-5.438c1.125-1.125 2.5-1.688 4.125-1.688s3.063.625 4.188 1.813a11.48 11.48 0 0 0 3.688-1.375c-.438 1.375-1.313 2.438-2.563 3.188 1.125-.125 2.188-.438 3.313-.875z"/></svg>
+            </a>
+            <a class="floating-header-share-fb" href="https://www.facebook.com/sharer/sharer.php?u=https://blog.pxtst.com/p/3c90270a-b815-43cd-a8cd-3d8a7aea4e6e/"
+               onclick="window.open(this.href, 'share-facebook','width=580,height=296');return false;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M19 6h5V0h-5c-3.86 0-7 3.14-7 7v3H8v6h4v16h6V16h5l1-6h-6V7c0-.542.458-1 1-1z"/></svg>
+            </a>
+        </div>
+        <progress id="reading-progress" class="progress" value="0">
+            <div class="progress-container">
+                <span class="progress-bar"></span>
+            </div>
+        </progress>
+    </div>
+
+
+
+
+    <footer class="site-footer outer">
+        <div class="site-footer-content inner">
+            <section class="copyright"><a href="https://blog.pxtst.com">PixelToast</a> &copy; 2020</section>
+            <nav class="site-footer-nav">
+                <a href="https://blog.pxtst.com">Latest Posts</a>
+
+
+                <a href="https://ghost.org" target="_blank" rel="noopener">Ghost</a>
+            </nav>
+        </div>
+    </footer>
+
+</div>
+
+
+<script>
+    var images = document.querySelectorAll('.kg-gallery-image img');
+    images.forEach(function (image) {
+        var container = image.closest('.kg-gallery-image');
+        var width = image.attributes.width.value;
+        var height = image.attributes.height.value;
+        var ratio = width / height;
+        container.style.flex = ratio + ' 1 0%';
+    })
+</script>
+
+
+<script
+        src="https://code.jquery.com/jquery-3.2.1.min.js"
+        integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+        crossorigin="anonymous">
+</script>
+<script type="text/javascript" src="/assets/built/jquery.fitvids.js?v=6b8cb19b08"></script>
+
+
+<script>
+
+    // NOTE: Scroll performance is poor in Safari
+    // - this appears to be due to the events firing much more slowly in Safari.
+    //   Dropping the scroll event and using only a raf loop results in smoother
+    //   scrolling but continuous processing even when not scrolling
+    $(document).ready(function () {
+        // Start fitVids
+        var $postContent = $(".post-full-content");
+        $postContent.fitVids();
+        // End fitVids
+
+        var progressBar = document.querySelector('#reading-progress');
+        var header = document.querySelector('.floating-header');
+        var title = document.querySelector('.post-full-title');
+
+        var lastScrollY = window.scrollY;
+        var lastWindowHeight = window.innerHeight;
+        var lastDocumentHeight = $(document).height();
+        var ticking = false;
+
+        function onScroll() {
+            lastScrollY = window.scrollY;
+            requestTick();
+        }
+
+        function onResize() {
+            lastWindowHeight = window.innerHeight;
+            lastDocumentHeight = $(document).height();
+            requestTick();
+        }
+
+        function requestTick() {
+            if (!ticking) {
+                requestAnimationFrame(update);
+            }
+            ticking = true;
+        }
+
+        function update() {
+            var trigger = title.getBoundingClientRect().top + window.scrollY;
+            var triggerOffset = title.offsetHeight + 35;
+            var progressMax = lastDocumentHeight - lastWindowHeight;
+
+            // show/hide floating header
+            if (lastScrollY >= trigger + triggerOffset) {
+                header.classList.add('floating-active');
+            } else {
+                header.classList.remove('floating-active');
+            }
+
+            progressBar.setAttribute('max', progressMax);
+            progressBar.setAttribute('value', lastScrollY);
+
+            ticking = false;
+        }
+
+        window.addEventListener('scroll', onScroll, {passive: true});
+        window.addEventListener('resize', onResize, false);
+
+        update();
+
+    });
+</script>
+
+
+
+
+<script src="/assets/built/tagcolor.js?v=6b8cb19b08"></script>
+
+</body>
+</html>
